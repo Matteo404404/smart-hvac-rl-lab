@@ -1,0 +1,5 @@
+.pytest
+.cache
+.pytest_cache
+models/
+*.pyc
