@@ -1,5 +1,56 @@
-.pytest
-.cache
-.pytest_cache
-models/
-*.pyc
+# ======================
+# Python / build
+# ======================
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+build/
+dist/
+.eggs/
+*.egg-info/
+*.egg
+
+# Virtualenv / environment
+.venv/
+venv/
+env/
+ENV/
+.env
+.envrc
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_convert/
+*.nbconvert.ipynb
+
+# ======================
+# Editor / IDE
+# ======================
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ======================
+# Project-specific
+# ======================
+
+# Results: models, logs, figures
+results/models/
+results/logs/
+results/figures/
+
+# TensorBoard o simili (se li usi)
+runs/
+tb_logs/
+
+# Temporary data / cache
+data/tmp/
+.tmp/
+*.tmp
+
+# OS junk
+.DS_Store
+Thumbs.db
