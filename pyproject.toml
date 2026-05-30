@@ -6,38 +6,21 @@ build-backend = "setuptools.build_meta"
 name = "smart-hvac-rl-lab"
 version = "0.1.0"
 description = "A reproducible RL sandbox for learning HVAC control policies in simulated buildings."
-readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "MIT" }
-
 dependencies = [
-    "numpy>=1.26",
-    "scipy>=1.12",
+    "numpy>=1.24",
+    "scipy>=1.10",
     "gymnasium>=0.29",
-    "stable-baselines3>=2.3",
-    "pandas>=2.2",
-    "matplotlib>=3.8",
-    "seaborn>=0.13",
+    "stable-baselines3>=2.2",
+    "torch>=2.1",
+    "matplotlib>=3.7",
+    "seaborn>=0.12",
+    "pandas>=2.0",
+    "pytest>=7.4",
 ]
 
 [project.optional-dependencies]
-dev = [
-    "pytest>=8",
-    "pytest-cov",
-    "ruff",
-    "mypy",
-    "ipykernel",
-    "notebook",
-]
+dev = ["jupyter", "ipykernel", "black", "ruff"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
-
-[tool.ruff]
-line-length = 100
-target-version = "py310"
-
-[tool.mypy]
-python_version = "3.10"
-strict = false
-ignore_missing_imports = true

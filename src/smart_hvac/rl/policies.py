@@ -1,37 +1,31 @@
-"""Helpers to load trained RL models and expose a unified .act() interface."""
+"""Helpers to load trained SB3 models and expose a unified .act() API."""
 
 from __future__ import annotations
 import numpy as np
 
 
-class LoadedPolicy:
-    """Thin wrapper around a loaded SB3 model.
+class SB3Policy:
+    """Thin wrapper around a Stable-Baselines3 model."""
 
-    Exposes act(obs) → float for use with run_rollout(is_baseline=False).
-    Also implements .predict() so it's usable directly with SB3 utilities.
-    """
+    def __init__(self, model, deterministic: bool = True):
+        self.model = model
+        self.deterministic = deterministic
 
-    def __init__(self, model_path: str, algo: str = "sac") -> None:
-        self.model_path = model_path
-        self.algo = algo.lower()
-        self._model = self._load()
+    def reset(self) -> None:
+        pass  # SB3 models are stateless at inference
 
-    def _load(self):
-        if self.algo == "sac":
-            from stable_baselines3 import SAC
-            return SAC.load(self.model_path)
-        elif self.algo == "ppo":
-            from stable_baselines3 import PPO
-            return PPO.load(self.model_path)
-        else:
-            raise ValueError(f"Unknown algo: {self.algo!r}. Use 'sac' or 'ppo'.")
+    def act(self, obs: np.ndarray) -> np.ndarray:
+        action, _ = self.model.predict(obs, deterministic=self.deterministic)
+        return action
 
-    def predict(
-        self, obs: np.ndarray, deterministic: bool = True
-    ) -> tuple[np.ndarray, None]:
-        action, state = self._model.predict(obs, deterministic=deterministic)
-        return action, state
 
-    def act(self, obs: np.ndarray, deterministic: bool = True) -> float:
-        action, _ = self.predict(obs, deterministic=deterministic)
-        return float(action[0])
+def load_sac(path: str, **kwargs) -> SB3Policy:
+    from stable_baselines3 import SAC
+    model = SAC.load(path, **kwargs)
+    return SB3Policy(model)
+
+
+def load_ppo(path: str, **kwargs) -> SB3Policy:
+    from stable_baselines3 import PPO
+    model = PPO.load(path, **kwargs)
+    return SB3Policy(model)

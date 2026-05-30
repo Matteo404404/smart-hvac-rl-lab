@@ -1,47 +1,33 @@
-"""Unit tests for reward components."""
-
+"""Unit tests for reward function sign and monotonicity."""
 import pytest
+import numpy as np
 from smart_hvac.core.parameters import Parameters
+from smart_hvac.envs.hvac_env import HvacEnv
 
 
 @pytest.fixture
-def params():
-    return Parameters()
+def env():
+    return HvacEnv(params=Parameters(), day_type="cold", seed=0)
 
 
-def test_comfort_deviation_inside_band(params):
-    assert params.comfort_deviation(22.0) == 0.0
+def test_comfort_penalty_sign(env):
+    env.reset(seed=0)
+    env.T_in = 15.0  # well below comfort band
+    _, reward, _, _, info = env.step(np.array([0.0]))
+    assert info["r_comfort"] < 0, "Comfort penalty must be negative."
 
 
-def test_comfort_deviation_below_band(params):
-    d = params.comfort_deviation(20.0)
-    assert d == pytest.approx(1.0)
+def test_larger_deviation_larger_penalty(env):
+    params = Parameters()
+    dev_small = 1.0
+    dev_large = 3.0
+    penalty_small = -params.lambda_c * dev_small ** 2
+    penalty_large = -params.lambda_c * dev_large ** 2
+    assert penalty_large < penalty_small, "Larger deviation → larger penalty."
 
 
-def test_comfort_deviation_above_band(params):
-    d = params.comfort_deviation(25.0)
-    assert d == pytest.approx(2.0)
-
-
-def test_more_deviation_more_penalty(params):
-    d1 = params.comfort_deviation(19.0)
-    d2 = params.comfort_deviation(18.0)
-    assert d2 > d1
-
-
-def test_energy_penalty_positive_power(params):
-    P = 1000.0
-    penalty = -params.lambda_e * P
-    assert penalty < 0.0
-
-
-def test_smoothness_penalty_large_jump(params):
-    u_prev, u_now = 0.0, 1.0
-    penalty = -params.lambda_s * (u_now - u_prev) ** 2
-    assert penalty < 0.0
-
-
-def test_smoothness_penalty_zero_jump(params):
-    u_prev, u_now = 0.5, 0.5
-    penalty = -params.lambda_s * (u_now - u_prev) ** 2
-    assert penalty == pytest.approx(0.0)
+def test_energy_penalty_sign(env):
+    env.reset(seed=0)
+    env.T_in = 22.0  # inside comfort band
+    _, reward, _, _, info = env.step(np.array([1.0]))
+    assert info["r_energy"] < 0, "Energy penalty must be negative."

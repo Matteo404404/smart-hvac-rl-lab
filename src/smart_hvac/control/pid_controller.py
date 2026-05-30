@@ -1,64 +1,55 @@
-"""PID controller baseline.
-
-Tracks a temperature setpoint using proportional–integral–derivative
-control, with anti-windup clamping and output clipping to [0, 1].
-
-The control law (discrete form, Eq. 6 in the theoretical section):
-    u_t = Kp * e_t  +  Ki * sum(e_τ * dt)  +  Kd * (e_t - e_{t-1}) / dt
-"""
+"""Discrete-time PID controller baseline for HVAC."""
 
 from __future__ import annotations
+import numpy as np
 from smart_hvac.core.parameters import Parameters
 
 
 class PIDController:
-    """Discrete PID controller for HVAC temperature tracking.
+    """Discrete PID with anti-windup and output clipping to [0, 1].
+
+    Setpoint: midpoint of comfort band = (T_min + T_max) / 2.
 
     Parameters
     ----------
-    params   : Parameters instance (pid_Kp, pid_Ki, pid_Kd, T_set, dt)
-    setpoint : override for the nominal temperature setpoint [°C]
+    Kp, Ki, Kd : PID gains
+    dt         : timestep [s]
     """
 
     def __init__(
         self,
         params: Parameters | None = None,
-        setpoint: float | None = None,
-    ) -> None:
+        Kp: float = 0.15,
+        Ki: float = 0.008,
+        Kd: float = 0.5,
+    ):
         self.params = params or Parameters()
-        self.setpoint = setpoint if setpoint is not None else self.params.T_set
+        self.Kp = Kp
+        self.Ki = Ki
+        self.Kd = Kd
+        self.dt = self.params.dt
+        self._T_set = (self.params.T_min + self.params.T_max) / 2.0
         self._integral: float = 0.0
-        self._e_prev: float = 0.0
-        # Anti-windup limits (in °C · s)
-        self._integral_max: float = 50.0
+        self._prev_error: float = 0.0
 
     def reset(self) -> None:
-        """Reset integrator and previous error (call at episode start)."""
         self._integral = 0.0
-        self._e_prev = 0.0
+        self._prev_error = 0.0
 
-    def act(self, T_in: float) -> float:
-        """Compute normalised HVAC power command.
+    def act(self, obs: np.ndarray) -> np.ndarray:
+        """Return action given observation vector."""
+        T_in = float(obs[0])
+        error = self._T_set - T_in
 
-        Parameters
-        ----------
-        T_in : current indoor temperature [°C]
+        self._integral += error * self.dt
+        # Anti-windup: clamp integral contribution
+        self._integral = float(np.clip(
+            self._integral, -1.0 / (self.Ki + 1e-9), 1.0 / (self.Ki + 1e-9)
+        ))
 
-        Returns
-        -------
-        u : normalised power in [0, 1]
-        """
-        e = self.setpoint - T_in
-        self._integral = max(
-            -self._integral_max,
-            min(self._integral_max, self._integral + e * self.params.dt),
-        )
-        derivative = (e - self._e_prev) / self.params.dt
-        self._e_prev = e
+        derivative = (error - self._prev_error) / self.dt
+        u = self.Kp * error + self.Ki * self._integral + self.Kd * derivative
+        self._prev_error = error
 
-        u_raw = (
-            self.params.pid_Kp * e
-            + self.params.pid_Ki * self._integral
-            + self.params.pid_Kd * derivative
-        )
-        return float(max(0.0, min(1.0, u_raw)))
+        u_clipped = float(np.clip(u, 0.0, 1.0))
+        return np.array([u_clipped], dtype=np.float32)

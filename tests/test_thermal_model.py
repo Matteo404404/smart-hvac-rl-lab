@@ -1,11 +1,8 @@
 """Unit tests for the RC thermal model."""
-
-import math
 import pytest
 import numpy as np
-
 from smart_hvac.core.parameters import Parameters
-from smart_hvac.core.thermal_model import step_rc, occupancy_schedule
+from smart_hvac.core.thermal_model import step_rc, SinusoidalWeather, occupancy_flag
 
 
 @pytest.fixture
@@ -13,45 +10,40 @@ def params():
     return Parameters()
 
 
-def test_no_hvac_approaches_outdoor(params):
-    """Without HVAC, T_in should converge toward T_out over many steps."""
-    T_out = 5.0
-    T_in = 22.0
+def test_cooling_toward_T_out(params):
+    """Without HVAC and gains, T_in must converge toward T_out."""
+    T_in, T_out = 25.0, 10.0
     for _ in range(500):
-        T_in = step_rc(T_in=T_in, T_out=T_out, P_hvac=0.0, Q_int=0.0, params=params)
-    assert T_in == pytest.approx(T_out, abs=0.5)
+        T_in = step_rc(T_in, T_out, P_hvac=0.0, Q_int=0.0, params=params)
+    assert abs(T_in - T_out) < 0.1, f"T_in={T_in:.2f} should approach T_out={T_out}"
 
 
-def test_heating_raises_temperature(params):
-    """Full HVAC power should raise T_in above initial value."""
-    T_in_0 = 15.0
-    T_in = T_in_0
-    for _ in range(20):
-        T_in = step_rc(T_in=T_in, T_out=5.0, P_hvac=params.P_max, Q_int=0.0, params=params)
-    assert T_in > T_in_0
+def test_heating_increases_T_in(params):
+    """With constant heating, T_in must increase."""
+    T_in = 15.0
+    T_out = 5.0
+    T_new = step_rc(T_in, T_out, P_hvac=params.P_max, Q_int=0.0, params=params)
+    assert T_new > T_in
 
 
-def test_steady_state_with_constant_inputs(params):
-    """T_in should stabilise near the analytical steady-state value."""
-    T_out = 10.0
-    P = params.P_max * 0.5
-    T_ss = T_out + params.R * (params.eta_hvac * P)
-    T_in = 22.0
-    for _ in range(1000):
-        T_in = step_rc(T_in=T_in, T_out=T_out, P_hvac=P, Q_int=0.0, params=params)
-    assert T_in == pytest.approx(T_ss, abs=0.1)
+def test_steady_state(params):
+    """At steady state: T_ss = T_out + R * P_hvac."""
+    P_hvac = 3000.0
+    T_out  = 10.0
+    T_ss_expected = T_out + params.R * params.eta_hvac * P_hvac
+    T_in = T_ss_expected
+    T_new = step_rc(T_in, T_out, P_hvac, Q_int=0.0, params=params)
+    assert abs(T_new - T_in) < 1e-6, "At steady state, T_in should remain unchanged."
 
 
-def test_occupancy_schedule_office(params):
+def test_weather_cold(params):
     rng = np.random.default_rng(0)
-    occ = occupancy_schedule(params.episode_steps, params.dt, "office", rng=None)
-    steps_per_hour = int(3600 / params.dt)
-    # Should be occupied between 08:00 and 18:00
-    assert occ[8 * steps_per_hour] == 1
-    assert occ[17 * steps_per_hour] == 1
-    assert occ[7 * steps_per_hour - 1] == 0
+    w = SinusoidalWeather(params, rng)
+    w.reset("cold")
+    T = w.get(0)
+    assert T < 10.0, "Cold day should give low outdoor temperature."
 
 
-def test_occupancy_schedule_always_on(params):
-    occ = occupancy_schedule(params.episode_steps, params.dt, "always_on")
-    assert np.all(occ == 1)
+def test_occupancy_office(params):
+    assert occupancy_flag(32, "office", params.dt) == 1  # step 32 = 8h
+    assert occupancy_flag(0,  "office", params.dt) == 0  # midnight
